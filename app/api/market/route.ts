@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(500, Math.max(40, Number(req.nextUrl.searchParams.get("limit") || 120)));
 
   try {
-    if (/^[A-Z0-9]{5,12}USDT$/.test(symbol)) {
+    if (/^[A-Z0-9]{3,12}USDT$/.test(symbol)) {
       const query =
         "?symbol=" + encodeURIComponent(symbol) +
         "&interval=" + encodeURIComponent(interval) +
@@ -55,10 +55,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const yahooSymbol = symbol.includes("=") ? symbol : symbol;
     const endpoint =
       "https://query1.finance.yahoo.com/v8/finance/chart/" +
-      encodeURIComponent(yahooSymbol) +
+      encodeURIComponent(symbol) +
       "?interval=" + encodeURIComponent(interval) +
       "&range=6mo";
 
