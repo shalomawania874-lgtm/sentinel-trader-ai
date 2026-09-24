@@ -1,132 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 
-function ema(values: number[], period: number) {
-  if (!values.length) return 0;
-  const k = 2 / (period + 1);
-  let e = values[0];
-  for (let i = 1; i < values.length; i++) e = values[i] * k + e * (1 - k);
-  return e;
-}
+const ema=(a:number[],n:number)=>{if(a.length<n)return 0;let e=a.slice(0,n).reduce((s,x)=>s+x,0)/n,k=2/(n+1);for(let i=n;i<a.length;i++)e=a[i]*k+e*(1-k);return e};
+const rsi=(a:number[],n=14)=>{if(a.length<n+1)return 50;let g=0,l=0;for(let i=a.length-n;i<a.length;i++){const d=a[i]-a[i-1];if(d>0)g+=d;else l-=d}if(l===0)return 100;return 100-100/(1+g/l)};
+const atr=(c:any[],n=14)=>{if(c.length<n+1)return 0;const tr=c.slice(1).map((x:any,i:number)=>Math.max(x.h-x.l,Math.abs(x.h-c[i].c),Math.abs(x.l-c[i].c)));return tr.slice(-n).reduce((s:number,x:number)=>s+x,0)/n};
+const macd=(a:number[])=>ema(a,12)-ema(a,26);
+const slope=(a:number[],n=20)=>{const x=a.slice(-n);if(x.length<2)return 0;return (x.at(-1)-x[0])/Math.max(1,Math.abs(x[0]))};
 
-function rsi(values: number[], period = 14) {
-  if (values.length < period + 1) return 50;
-  let gains = 0;
-  let losses = 0;
-  for (let i = values.length - period; i < values.length; i++) {
-    const d = values[i] - values[i - 1];
-    if (d > 0) gains += d;
-    else losses -= d;
-  }
-  if (losses === 0) return 100;
-  return 100 - 100 / (1 + (gains / period) / (losses / period));
-}
-
-function atr(candles: any[], period = 14) {
-  if (candles.length < 2) return 0;
-  let total = 0;
-  const start = Math.max(1, candles.length - period);
-  for (let i = start; i < candles.length; i++) {
-    total += Math.max(
-      candles[i].h - candles[i].l,
-      Math.abs(candles[i].h - candles[i - 1].c),
-      Math.abs(candles[i].l - candles[i - 1].c)
-    );
-  }
-  return total / Math.max(1, candles.length - start);
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const { candles, news = [] } = await req.json();
-
-    if (!Array.isArray(candles) || candles.length < 40) {
-      throw new Error("Insufficient market data");
-    }
-
-    const closes = candles.map((x: any) => +x.c);
-    const fast = ema(closes, 12);
-    const slow = ema(closes, 26);
-    const r = rsi(closes);
-    const a = atr(candles);
-    const last = closes[closes.length - 1] ?? 0;
-    const prev = closes[closes.length - 2] ?? last;
-
-    let score = 0;
-    const reasons: string[] = [];
-
-    if (fast > slow) {
-      score += 2;
-      reasons.push("EMA trend structure is bullish");
-    } else {
-      score -= 2;
-      reasons.push("EMA trend structure is bearish");
-    }
-
-    if (r > 55 && r < 75) {
-      score += 1;
-      reasons.push("RSI supports bullish momentum");
-    } else if (r < 45 && r > 25) {
-      score -= 1;
-      reasons.push("RSI supports bearish momentum");
-    } else {
-      reasons.push("RSI is neutral or extended");
-    }
-
-    if (last > prev) {
-      score += 1;
-      reasons.push("Latest close is above the prior close");
-    } else if (last < prev) {
-      score -= 1;
-      reasons.push("Latest close is below the prior close");
-    } else {
-      reasons.push("Latest close is unchanged from the prior close");
-    }
-
-    const headlineText = news
-      .map((n: any) => n.title || "")
-      .join(" ")
-      .toLowerCase();
-
-    const positive = (headlineText.match(/surge|rally|gain|growth|bull|rise|strong|beat/g) || []).length;
-    const negative = (headlineText.match(/fall|drop|loss|bear|risk|crash|weak|cut/g) || []).length;
-
-    if (headlineText && positive > negative) {
-      score += 0.5;
-      reasons.push("Recent headlines have mildly positive market tone");
-    } else if (headlineText && negative > positive) {
-      score -= 0.5;
-      reasons.push("Recent headlines have mildly negative market tone");
-    } else {
-      reasons.push("Recent headline tone is mixed or unavailable");
-    }
-
-    let signal = "WAIT";
-    if (score >= 3) signal = "STRONG BUY";
-    else if (score >= 1.5) signal = "BUY";
-    else if (score <= -3) signal = "STRONG SELL";
-    else if (score <= -1.5) signal = "SELL";
-
-    const confidence = Math.min(94, Math.round(52 + (Math.abs(score) / 4.5) * 40));
-
-    if (signal === "WAIT") {
-      reasons.push("Factors are not aligned strongly enough, so Sentinel refuses to force a trade");
-    }
-
-    return NextResponse.json({
-      signal,
-      confidence,
-      price: last,
-      emaFast: fast,
-      emaSlow: slow,
-      rsi: r,
-      atr: a,
-      reasons,
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (e: unknown) {
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "analysis failed" },
-      { status: 400 }
-    );
-  }
+export async function POST(req:NextRequest){
+  try{
+    const body=await req.json(), c=body?.candles||[];
+    if(!Array.isArray(c)||c.length<40) throw new Error("At least 40 verified candles are required.");
+    const close=c.map((x:any)=>Number(x.c)), last=close.at(-1), e20=ema(close,20), e50=ema(close,50), e200=ema(close,200), R=rsi(close), A=atr(c), M=macd(close), S=slope(close);
+    const recent=c.slice(-40), support=Math.min(...recent.map((x:any)=>x.l)), resistance=Math.max(...recent.map((x:any)=>x.h));
+    let score=0; const reasons:string[]=[];
+    if(last>e20){score+=1;reasons.push("Price is above the 20-period EMA.")}else{score-=1;reasons.push("Price is below the 20-period EMA.")}
+    if(e20>e50){score+=1;reasons.push("20 EMA is above 50 EMA, supporting bullish trend structure.")}else{score-=1;reasons.push("20 EMA is below 50 EMA, supporting bearish trend structure.")}
+    if(e200){if(last>e200){score+=1;reasons.push("Price is above the 200-period EMA.")}else{score-=1;reasons.push("Price is below the 200-period EMA.")}}
+    if(R>=55&&R<=72){score+=1;reasons.push("RSI has positive momentum without being deeply overbought.")}else if(R<=45&&R>=28){score-=1;reasons.push("RSI has negative momentum without being deeply oversold.")}else reasons.push("RSI is extended or neutral, so momentum is less reliable.");
+    if(M>0){score+=1;reasons.push("MACD spread is positive.")}else{score-=1;reasons.push("MACD spread is negative.")}
+    if(S>0.005){score+=1;reasons.push("Recent price slope is positive.")}else if(S<-0.005){score-=1;reasons.push("Recent price slope is negative.")}else reasons.push("Recent price slope is relatively flat.");
+    const strength=Math.abs(score);
+    let signal="NEUTRAL";
+    if(strength>=4) signal=score>0?"STRONG BUY":"STRONG SELL"; else if(strength>=2) signal=score>0?"BUY":"SELL";
+    if((R>75&&score>0)||(R<25&&score<0)) {signal="WAIT";reasons.push("Momentum is extended; the engine suppresses a directional call.");}
+    const confidence=Math.min(95,Math.max(35,Math.round(50+strength*8+Math.min(10,Math.abs(S)*500))));
+    return NextResponse.json({signal,confidence,price:last,ema20:e20,ema50:e50,ema200:e200,rsi:R,atr:A,macd:M,support,resistance,reasons,model:"Deterministic multi-factor technical engine v2",updatedAt:new Date().toISOString()});
+  }catch(e:any){return NextResponse.json({error:e?.message||"Analysis failed"},{status:400})}
 }
