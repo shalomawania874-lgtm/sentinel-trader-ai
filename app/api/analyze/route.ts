@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse} from "next/server";
-import {decide,Candle} from "@/lib/sentinel-engine";
+import {decide,Candle} from "../../../lib/sentinel-engine";
 export async function POST(req:NextRequest){
   try{
     const body=await req.json();
