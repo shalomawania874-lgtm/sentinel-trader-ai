@@ -20,7 +20,7 @@ export async function GET(req:NextRequest){
   const sp=req.nextUrl.searchParams;
   const symbol=(sp.get("symbol")||"BTCUSDT").trim().toUpperCase();
   const interval=sp.get("interval")||"1h";
-  const limit=Math.min(500,Math.max(40,Number(sp.get("limit")||180)));
+  const limit=Math.min(500,Math.max(220,Number(sp.get("limit"))||300));
   try{
     if(/^[A-Z0-9]{3,20}USDT$/.test(symbol)){
       const q=`?symbol=${encodeURIComponent(binanceSymbol(symbol))}&interval=${encodeURIComponent(interval==="4h"?"1h":interval)}&limit=${Math.min(1000,limit*(interval==="4h"?4:1))}`;
@@ -30,7 +30,7 @@ export async function GET(req:NextRequest){
         let candles=raw.filter((x:any[])=>Array.isArray(x)&&x.length>=6).map((x:any[])=>({t:Number(x[0]),o:Number(x[1]),h:Number(x[2]),l:Number(x[3]),c:Number(x[4]),v:Number(x[5])}));
         if(interval==="4h") candles=aggregate4h(candles);
         candles=candles.slice(-limit);
-        if(candles.length>=40) return NextResponse.json({provider:"Binance Vision",symbol,interval,candles,price:candles.at(-1)?.c,updatedAt:new Date().toISOString()});
+        if(candles.length>=220)return NextResponse.json({provider:"Binance Vision",symbol,interval,candles,price:candles.at(-1)?.c,updatedAt:new Date().toISOString()});
       }
     }
     const normalized=symbol.includes("=")||symbol.startsWith("^")||symbol.includes("-")?symbol:symbol;
@@ -42,8 +42,9 @@ export async function GET(req:NextRequest){
     const ts=res?.timestamp||[], q=res?.indicators?.quote?.[0];
     if(!q||ts.length<40) throw new Error("No usable market data returned");
     let candles=ts.map((t:number,i:number)=>({t:t*1000,o:Number(q.open?.[i]),h:Number(q.high?.[i]),l:Number(q.low?.[i]),c:Number(q.close?.[i]),v:Number(q.volume?.[i]||0)})).filter((x:any)=>[x.o,x.h,x.l,x.c].every(Number.isFinite));
+    if(interval==="4h") candles=aggregate4h(candles);
     candles=candles.slice(-limit);
-    if(candles.length<40) throw new Error("Insufficient market data");
+    if(candles.length<220) throw new Error("Insufficient market data");
     return NextResponse.json({provider:"Yahoo Finance",symbol:res.meta?.symbol||symbol,interval,candles,price:candles.at(-1)?.c,updatedAt:new Date().toISOString()});
   }catch(e:any){
     return NextResponse.json({error:"DATA UNAVAILABLE",reason:e?.message||"No verified provider returned usable data."},{status:503});
