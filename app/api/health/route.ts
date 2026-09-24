@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+export const dynamic="force-dynamic";
+export async function GET(){const checks:any={time:new Date().toISOString(),status:"ok",providers:{}};try{const r=await fetch("https://data-api.binance.vision/api/v3/ping",{cache:"no-store"});checks.providers.binance=r.ok?"ok":"down"}catch{checks.providers.binance="down"}try{const r=await fetch("https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?interval=1h&range=1d",{cache:"no-store"});checks.providers.yahoo=r.ok?"ok":"down"}catch{checks.providers.yahoo="down"}if(Object.values(checks.providers).some(x=>x!=="ok"))checks.status="degraded";return NextResponse.json(checks,{status:checks.status==="ok"?200:503})}
