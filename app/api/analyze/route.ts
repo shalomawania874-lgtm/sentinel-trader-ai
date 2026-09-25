@@ -20,13 +20,18 @@ export async function POST(req:NextRequest){
 
     const result=decide(clean,interval);
     let ml:any=null;
-    if(clean.length>=260){ try{ ml=trainedEnsemble(clean,interval); }catch{} }
+    if(clean.length>=260){ try{ ml=trainedEnsemble(clean,1); }catch{} }
 
     const engineSignal=result.signal;
-    const mlBias=ml?.averageProbability==null?0:ml.averageProbability>.56?1:ml.averageProbability<.44?-1:0;
+    const mlProbability=typeof ml?.probability==="number"?ml.probability:null;
+    const mlBias=mlProbability==null?0:mlProbability>.58?1:mlProbability<.42?-1:0;
     let signal=engineSignal;
     if((engineSignal==="WAIT"||engineSignal==="NEUTRAL") && mlBias!==0){
       signal=mlBias>0?"BUY":"SELL";
+    } else if((engineSignal==="BUY"||engineSignal==="STRONG BUY") && mlBias<0){
+      signal="WAIT";
+    } else if((engineSignal==="SELL"||engineSignal==="STRONG SELL") && mlBias>0){
+      signal="WAIT";
     }
     const payload={
       ...result,
@@ -37,9 +42,9 @@ export async function POST(req:NextRequest){
       dataStatus:"LIVE_VERIFIED",
       candleCount:clean.length,
       lastCandleAt:new Date(clean.at(-1)!.t).toISOString(),
-      ml:ml?{averageProbability:ml.averageProbability,regime:ml.regime,calibrated:ml.calibrated,totalModels:ml.totalModels}:null,
+      ml:ml?{probability:ml.probability,signal:ml.signal,regime:ml.regime,calibrated:ml.calibrated,totalModels:ml.totalModels,trainSamples:ml.trainSamples,validationAccuracy:ml.validationAccuracy,brierScore:ml.brierScore}:null,
       updatedAt:new Date().toISOString(),
-      methodology:"Live verified OHLCV + deterministic technical ensemble + trained logistic ensemble when enough history exists. No simulated prices or signals."
+      methodology:"Live verified OHLCV + deterministic technical ensemble + correctly trained/calibrated chronological logistic ensemble when enough history exists. Conflicting model evidence can force WAIT. No simulated prices or signals."
     };
     return NextResponse.json(payload,{headers:{"Cache-Control":"no-store, no-cache, must-revalidate"}});
   }catch(e:any){

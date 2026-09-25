@@ -1,7 +1,7 @@
 import type {Candle} from "./sentinel-engine";
 
 type Model={w:number[];b:number};
-type MLResult={probability:number;signal:"BULLISH"|"BEARISH"|"NEUTRAL";models:number;trainSamples:number;calibrated:boolean;regime:string;horizon:number};
+type MLResult={probability:number;averageProbability:number;signal:"BULLISH"|"BEARISH"|"NEUTRAL";models:number;totalModels:number;trainSamples:number;calibrated:boolean;regime:string;horizon:number;validationAccuracy:number|null;brierScore:number|null};
 
 const clamp=(x:number,a:number,b:number)=>Math.max(a,Math.min(b,x));
 const sigmoid=(x:number)=>1/(1+Math.exp(-clamp(x,-30,30)));
@@ -39,7 +39,7 @@ function calibrate(raw:number[],ys:number[]){
  return {a,b,ok:true};
 }
 export function trainedEnsemble(c:Candle[],horizon=1):MLResult{
- if(c.length<260)return {probability:.5,signal:"NEUTRAL",models:0,trainSamples:0,calibrated:false,regime:"UNKNOWN",horizon};
+ if(c.length<260)return {probability:.5,averageProbability:.5,signal:"NEUTRAL",models:0,totalModels:0,trainSamples:0,calibrated:false,regime:"UNKNOWN",horizon,validationAccuracy:null,brierScore:null};
  const X:number[][]=[],Y:number[]=[];
  for(let i=80;i<c.length-horizon;i++){X.push(features(c,i));Y.push(c[i+horizon].c>c[i].c?1:0)}
  const split=Math.max(20,Math.floor(X.length*.8)),trainX=X.slice(0,split),trainY=Y.slice(0,split),valX=X.slice(split),valY=Y.slice(split);
@@ -47,9 +47,11 @@ export function trainedEnsemble(c:Candle[],horizon=1):MLResult{
  const models=variants.map(mask=>train(trainX.map(x=>x.map((v,j)=>v*mask[j])),trainY));
  const raws=valX.map((x)=>mean(models.map((m,k)=>predict(m,x.map((v,j)=>v*variants[k][j])))));
  const cal=calibrate(raws,valY);
+ const validationAccuracy=raws.length?raws.reduce((s,p,i)=>s+((p>.5?1:0)===(valY[i]||0)?1:0),0)/raws.length:null;
+ const brierScore=raws.length?raws.reduce((s,p,i)=>s+(p-(valY[i]||0))**2,0)/raws.length:null;
  const x=features(c,c.length-1);
  const p0=mean(models.map((m,k)=>predict(m,x.map((v,j)=>v*variants[k][j]))));
  const z=cal.a*Math.log(clamp(p0,.001,.999)/(1-clamp(p0,.001,.999)))+cal.b;
  const p=clamp(sigmoid(z),.001,.999), edge=Math.abs(p-.5);
- return {probability:p,signal:edge<.045?"NEUTRAL":p>.5?"BULLISH":"BEARISH",models:models.length,trainSamples:trainX.length,calibrated:cal.ok,regime:regime(c),horizon};
+ return {probability:p,averageProbability:p,signal:edge<.045?"NEUTRAL":p>.5?"BULLISH":"BEARISH",models:models.length,totalModels:models.length,trainSamples:trainX.length,calibrated:cal.ok,regime:regime(c),horizon,validationAccuracy,brierScore};
 }
