@@ -16,3 +16,6 @@
 @keyframes sentinelSelected{from{transform:scale(.92);opacity:.55}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.frames button,.frames button::before,.quick button,.results button.row,.frames button.on span{transition:none;animation:none}}
 .frames .selectionHint{font-size:8px;letter-spacing:1.2px;color:#48e49a;margin-right:4px;opacity:.75}
+/* Timeframe selection hardening: active timeframe must visibly match market selection. */
+.frames button.on{background:linear-gradient(135deg,#48e49a,#20c978)!important;color:#06130c!important;border-color:#48e49a!important;box-shadow:0 0 0 1px #48e49a,0 0 22px rgba(72,228,154,.45)!important;transform:translateY(-1px)!important;}
+.frames button.on::before{opacity:0!important;transform:scale(1)!important;}
