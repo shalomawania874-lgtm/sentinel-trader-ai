@@ -1,4 +1,6 @@
 import {NextRequest,NextResponse} from "next/server";
+import {decide} from "../../../lib/sentinel-engine";
+import {trainedEnsemble} from "../../../lib/ml-engine";
 export async function POST(req:NextRequest){
  try{
   const b=await req.json();const symbols=Array.isArray(b?.symbols)?b.symbols.map(String).slice(0,5000):[];
@@ -8,13 +10,12 @@ export async function POST(req:NextRequest){
    const batch=symbols.slice(i,i+concurrency);
    const rows=await Promise.all(batch.map(async symbol=>{try{
     const r=await fetch(new URL("/api/market?symbol="+encodeURIComponent(symbol)+"&interval=1h&limit=300",req.url),{cache:"no-store"});if(!r.ok)return {symbol,status:"DATA_UNAVAILABLE"};const j=await r.json();const c=j.candles||[];if(c.length<220)return {symbol,status:"DATA_UNAVAILABLE"};const close=c.at(-1).c,old=c.at(-9)?.c;
-    let signal="WAIT",confidence=null,regime=null;
+    let signal="WAIT",confidence=null,regime=null,mlProbability=null;
     try{
-      const ar=await fetch(new URL("/api/analyze",req.url),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({candles:c,symbol,interval:"1h"})});
-      const aj=await ar.json();
-      if(ar.ok){signal=aj.signal||"WAIT";confidence=aj.confidence??null;regime=aj.regime??null;}
+      const d=decide(c,"1h"); signal=d.signal; confidence=d.confidence; regime=d.regime;
+      if(c.length>=260){const m=trainedEnsemble(c,1);mlProbability=m.probability;}
     }catch{}
-    return {symbol,status:"OK",price:close,momentum:old?close/old-1:0,signal,confidence,regime,provider:j.provider};
+    return {symbol,status:"OK",price:close,momentum:old?close/old-1:0,signal,confidence,regime,mlProbability,provider:j.provider};
    }catch{return {symbol,status:"DATA_UNAVAILABLE"}}}));
    results.push(...rows);
   }

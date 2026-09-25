@@ -14,7 +14,7 @@ export async function POST(req:NextRequest){
     if(clean.length<220)return NextResponse.json({error:"INVALID_DATA",reason:"Verified OHLCV data is incomplete.",dataStatus:"INVALID"},{status:400});
 
     const age=Date.now()-clean.at(-1)!.t;
-    const maxAge:Record<string,number>={"5m":10*60_000,"15m":30*60_000,"1h":2*60*60_000,"4h":8*60*60_000,"1d":48*60*60_000};
+    const maxAge:Record<string,number>={"1m":3*60_000,"5m":10*60_000,"15m":30*60_000,"1h":2*60*60_000,"4h":8*60*60_000,"1d":48*60*60_000};
     if(age<0 || age>(maxAge[interval]||2*60*60_000))
       return NextResponse.json({signal:"NO TRADE",decision:"NO TRADE",action:"NO TRADE",symbol,interval,dataStatus:"STALE",reason:"Latest verified candle is stale.",candleCount:clean.length,lastCandleAt:new Date(clean.at(-1)!.t).toISOString()});
 

@@ -21,7 +21,7 @@ export async function GET(req:NextRequest){
     const dir=(s:string)=>s.includes("BUY")?1:s.includes("SELL")?-1:0;
     const votes=usable.map(x=>dir(x.signal));
     const sum=votes.reduce((a,b)=>a+b,0);
-    const consensus=sum>=2?"BUY":sum<=-2?"SELL":sum===3?"STRONG BUY":sum===-3?"STRONG SELL":"WAIT";
+    const consensus=sum===3?"STRONG BUY":sum===-3?"STRONG SELL":sum>=2?"BUY":sum<=-2?"SELL":"WAIT";
     return NextResponse.json({symbol,status:"LIVE_VERIFIED",consensus,timeframes:rows,agreement:votes.filter(v=>v===Math.sign(sum)&&v!==0).length,updatedAt:new Date().toISOString(),methodology:"Independent 1h/4h/1d provider-verified analyses. Consensus never substitutes for missing data."},{headers:{"Cache-Control":"no-store"}});
   }catch(e:any){return NextResponse.json({symbol,status:"ERROR",reason:e?.message||"Multi-timeframe analysis failed"},{status:500});}
 }
